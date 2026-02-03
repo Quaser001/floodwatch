@@ -1,39 +1,58 @@
+
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         console.log('Received Report:', body);
 
-        // In a real app, save to DB here.
-        // For hackathon demo, we just return success.
+        const { location, areaName, type, description, photoUrl, photoVerified, metadata } = body;
+
+        // Insert into Supabase
+        const { data, error } = await supabase
+            .from('reports')
+            .insert({
+                location,
+                area_name: areaName,
+                type,
+                description,
+                image_url: photoUrl,
+                status: photoVerified ? 'verified' : 'pending', // Trust app verification
+                source: 'app',
+                metadata: metadata || {}
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Supabase Error:', error);
+            return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        }
 
         const response = NextResponse.json({
             success: true,
-            message: 'Report received',
-            id: 'mock-id-' + Date.now()
+            id: data.id,
+            message: 'Report saved to database'
         });
 
-        // CORS Headers
+        // Add CORS headers
         response.headers.set('Access-Control-Allow-Origin', '*');
         response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
         return response;
+
     } catch (error) {
-        console.error('Report Error:', error);
-        return NextResponse.json({ success: false }, { status: 500 });
+        console.error('API Error:', error);
+        return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
-export async function OPTIONS(request: NextRequest) {
-    const response = new NextResponse(null, {
-        status: 200,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-    });
+export async function OPTIONS() {
+    const response = new NextResponse(null, { status: 200 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return response;
 }

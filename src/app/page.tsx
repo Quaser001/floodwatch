@@ -13,12 +13,21 @@ import { useFloodStore } from '@/lib/store';
 export default function Dashboard() {
   const [showReportForm, setShowReportForm] = useState(false);
   const [showTelegramPreview, setShowTelegramPreview] = useState(false);
-  const { initializeUser, seedDemoData } = useFloodStore();
+  const { initializeUser, seedDemoData, fetchReports } = useFloodStore();
 
   useEffect(() => {
     initializeUser();
     seedDemoData();
-  }, [initializeUser, seedDemoData]);
+    fetchReports(); // Initial fetch
+
+    // Poll for new reports every 5 seconds
+    const interval = setInterval(() => {
+      console.log('🔄 Polling for updates...');
+      fetchReports();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [initializeUser, seedDemoData, fetchReports]);
 
   return (
     <>

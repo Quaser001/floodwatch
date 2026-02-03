@@ -1,6 +1,7 @@
 import { TelegramUpdate, TelegramMessage } from './types';
 import { telegramClient } from './client';
-import { useFloodStore } from '@/lib/store';
+// import { useFloodStore } from '@/lib/store'; // Store doesn't work on server
+import { supabase } from '@/lib/supabase';
 import { FloodReport, FloodType } from '../types';
 
 // --- Session Management ---
@@ -83,8 +84,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
 
     console.log(`[Telegram] ${user?.first_name}: ${text || '[Media]'}`);
 
-    // store access 
-    const store = typeof window !== 'undefined' ? useFloodStore.getState() : null;
+    // store access - REMOVED (Serverless)
+    // const store = typeof window !== 'undefined' ? useFloodStore.getState() : null;
 
     // Get Session
     const session = getSession(userId);
@@ -102,7 +103,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
 
     switch (session.state) {
         case 'IDLE':
-            await handleIdleState(chatId, text, msg, store);
+            await handleIdleState(chatId, text, msg);
             break;
         case 'AWAITING_FLOOD_TYPE':
             await handleFloodTypeState(userId, chatId, text);
@@ -111,14 +112,14 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
             await handleLocationState(userId, chatId, msg);
             break;
         case 'AWAITING_PHOTO':
-            await handlePhotoState(userId, chatId, msg, store);
+            await handlePhotoState(userId, chatId, msg);
             break;
     }
 }
 
 // --- Specific State Handlers ---
 
-async function handleIdleState(chatId: number, text: string | undefined, msg: TelegramMessage, store: any) {
+async function handleIdleState(chatId: number, text: string | undefined, msg: TelegramMessage) {
 
     // Command: /start
     if (text === '/start') {
@@ -148,33 +149,28 @@ async function handleIdleState(chatId: number, text: string | undefined, msg: Te
 
     // Button: 🌧 View Active Alerts
     if (text === '🌧 View Active Alerts') {
-        if (!store) {
-            await telegramClient.sendMessage(chatId, "⚠️ System connecting...", { reply_markup: KEYBOARDS.MAIN_MENU });
-            return;
-        }
+        // Query Supabase for active alerts
+        const { count } = await supabase
+            .from('reports')
+            .select('*', { count: 'exact', head: true })
+            .neq('status', 'rejected');
 
-        const activeAlerts = store.alerts.filter((a: any) => a.isActive);
-
-        if (activeAlerts.length === 0) {
+        if (!count || count === 0) {
             await telegramClient.sendMessage(chatId,
                 "✅ <b>No active flood alerts.</b>\nGuwahati is currently safe.",
                 { reply_markup: KEYBOARDS.MAIN_MENU }
             );
         } else {
-            let reply = `⚠️ <b>Active flood alerts in Guwahati:</b>\n`;
-            activeAlerts.forEach((a: any) => {
-                const icon = a.severity === 'critical' ? '🔴' : a.severity === 'high' ? '🟠' : '🟡';
-                reply += `• ${a.areaName} – ${a.severity.charAt(0).toUpperCase() + a.severity.slice(1)} ${icon}\n`;
-            });
-
-            await telegramClient.sendMessage(chatId, reply, {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🗺 Open Map", url: "http://localhost:3000" }] // In prod use real URL
-                    ]
-                }
-            });
-            // Don't change state, stay IDLE
+            await telegramClient.sendMessage(chatId,
+                `⚠️ <b>${count} Active flood reports in Guwahati.</b>\n\n` +
+                `Tap below to view the live map.`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🗺 Open Map", url: "https://floodwatch-guwahati.vercel.app" }]
+                        ]
+                    }
+                });
         }
         return;
     }
@@ -276,7 +272,7 @@ async function handleLocationState(userId: number, chatId: number, msg: Telegram
     }
 }
 
-async function handlePhotoState(userId: number, chatId: number, msg: TelegramMessage, store: any) {
+async function handlePhotoState(userId: number, chatId: number, msg: TelegramMessage) {
     const session = getSession(userId);
     const text = msg.text;
 
@@ -309,18 +305,18 @@ async function handlePhotoState(userId: number, chatId: number, msg: TelegramMes
         return;
     }
 
-    if (shouldFinalize && store) {
+    if (shouldFinalize) {
         const { draftReport } = session;
 
-        // Finalize Report
-        await store.submitReport({
+        // Insert into Supabase
+        await supabase.from('reports').insert({
+            location: draftReport.location,
+            area_name: 'Telegram User', // Reverse geocoding optional for now
             type: draftReport.type || 'flood',
-            location: draftReport.location!,
-            areaName: 'Telegram User Location', // Real app would reverse-geocode
-            description: `Report via Telegram`,
-            photoUrl: photoUrl,
-            photoVerified: !!photoUrl,
-            isActive: true
+            description: 'Reported via Telegram',
+            source: 'telegram',
+            status: 'pending',
+            image_url: photoUrl
         });
 
         const typeLabel = draftReport.type === 'flood' ? '🌊 Flood' :

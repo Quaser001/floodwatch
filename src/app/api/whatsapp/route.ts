@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
     return NextResponse.json({
@@ -23,6 +24,16 @@ export async function POST(request: NextRequest) {
         if (latitude && longitude) {
             // Case 1: Location Received
             message = `🚨 *Flood Report Received!* \n\nWe have marked your location at [${latitude}, ${longitude}]. \n\nHelp is on the way. Stay safe!`;
+
+            // Insert into Supabase
+            await supabase.from('reports').insert({
+                location: { lat: parseFloat(latitude.toString()), lng: parseFloat(longitude.toString()) },
+                area_name: 'WhatsApp User', // In real app, reverse geocode here
+                type: 'flood', // Default classification
+                description: body || 'Reported via WhatsApp',
+                source: 'whatsapp',
+                status: 'pending'
+            });
         } else if (body.toLowerCase().includes('help') || body.toLowerCase().includes('start')) {
             // Case 2: Help/Start
             message = `👋 *Welcome to FloodWatch!* \n\nTo help us track floods:\n📍 *Send your current Location* to report a flood.\n📸 *Send a Photo* to verify severity.`;

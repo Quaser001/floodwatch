@@ -56,6 +56,9 @@ interface FloodStore {
     // Resolution
     resolveAlert: (alertId: string) => void;
     clearResolvedNotifications: () => void;
+
+    // API Actions
+    fetchReports: () => Promise<void>;
 }
 
 // Initial Sensor Configuration
@@ -116,7 +119,13 @@ const CITY_WIDE_MOCK_LOCATIONS = [
     { name: 'Anil Nagar', coords: { lat: 26.1754, lng: 91.7766 }, type: 'flood', severity: 'critical', photoUrl: '/demo/flood_evidence_1.png' },
     { name: 'Nabin Nagar', coords: { lat: 26.1732, lng: 91.7744 }, type: 'flood', severity: 'critical', photoUrl: '/demo/flood_evidence_4.png' },
     { name: 'Hatigaon', coords: { lat: 26.1402, lng: 91.7909 }, type: 'waterlogging', severity: 'medium', photoUrl: '/demo/flood_evidence_2.png' },
-    { name: 'Rukminigaon', coords: { lat: 26.1364, lng: 91.7963 }, type: 'waterlogging', severity: 'high', photoUrl: '/demo/flood_evidence_5.png' }
+    { name: 'Rukminigaon', coords: { lat: 26.1364, lng: 91.7963 }, type: 'waterlogging', severity: 'high', photoUrl: '/demo/flood_evidence_5.png' },
+    { name: 'Bhetapara', coords: { lat: 26.1158, lng: 91.7876 }, type: 'waterlogging', severity: 'medium', photoUrl: '/demo/flood_evidence_3.png' },
+    { name: 'Six Mile', coords: { lat: 26.1301, lng: 91.8023 }, type: 'traffic_jam', severity: 'high', photoUrl: undefined },
+    { name: 'Ulubari', coords: { lat: 26.1736, lng: 91.7618 }, type: 'waterlogging', severity: 'low', photoUrl: undefined },
+    { name: 'Silpukhuri', coords: { lat: 26.1884, lng: 91.7762 }, type: 'drain_overflow', severity: 'medium', photoUrl: undefined },
+    { name: 'Noonmati', coords: { lat: 26.1956, lng: 91.8091 }, type: 'flood', severity: 'high', photoUrl: '/demo/flood_evidence_6.png' },
+    { name: 'Maligaon', coords: { lat: 26.1552, lng: 91.7086 }, type: 'road_blocked', severity: 'critical', photoUrl: undefined }
 ];
 
 export const useFloodStore = create<FloodStore>((set, get) => ({
@@ -186,10 +195,24 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
         // Simulate API delay
         await new Promise((resolve) => setTimeout(resolve, 500));
 
+        // Optimistic Update
         set((state) => ({
             reports: [...state.reports, newReport],
             isSubmitting: false,
         }));
+
+        // [NEW] Persist to Supabase
+        try {
+            await fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newReport)
+            });
+            // Ideally re-fetch to get correct ID/Time, but optimistic is fine for now
+        } catch (error) {
+            console.error('Failed to save report:', error);
+            get().addNotification('⚠️ Report saved locally (Offline)');
+        }
 
         // Add blocked road if this is a flood or drain overflow
         if (newReport.type === 'flood' || newReport.type === 'drain_overflow') {
@@ -212,6 +235,36 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
 
         // Add notification
         get().addNotification(`✅ Report submitted for ${newReport.areaName}`);
+    },
+
+    // [NEW] Fetch Reports from API
+    fetchReports: async () => {
+        try {
+            const res = await fetch('/api/reports');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.reports)) {
+                // Map DB schema to Store schema if needed
+                // For now assuming 1:1 match or close enough
+                // We need to map DB columns to frontend types
+                const formattedReports: FloodReport[] = data.reports.map((r: any) => ({
+                    id: r.id,
+                    location: r.location,
+                    areaName: r.area_name || 'Unknown',
+                    type: r.type as FloodType,
+                    description: r.description,
+                    timestamp: new Date(r.created_at),
+                    userId: 'anon', // DB doesn't track user IDs from app yet
+                    isActive: true, // Assuming recent reports are active
+                    photoUrl: r.image_url,
+                    photoVerified: r.status === 'verified'
+                }));
+
+                set({ reports: formattedReports });
+                get().processAlerts(); // Re-process alerts based on real data
+            }
+        } catch (error) {
+            console.error('Fetch reports error:', error);
+        }
     },
 
     // Process reports and generate alerts
