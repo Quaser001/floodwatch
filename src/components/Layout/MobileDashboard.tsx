@@ -322,7 +322,7 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
 
                 {/* Alerts Tab */}
                 {activeTab === 'alerts' && (
-                    <div className="h-full overflow-y-auto w-full pt-24 pb-32 px-5 bg-gradient-to-b from-slate-900 to-black">
+                    <div className="h-full overflow-y-auto w-full pt-20 pb-32 px-5 bg-gradient-to-b from-slate-900 to-black">
                         <div className="mb-6 mt-4">
                             <h2 className={`${headerScale} font-bold text-white mb-1`}>{t('Alert Feed')}</h2>
                             <p className={`${fontScale} text-slate-400`}>{t('Real-time community reports')}</p>

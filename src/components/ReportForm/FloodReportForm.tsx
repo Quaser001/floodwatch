@@ -223,9 +223,9 @@ export default function FloodReportForm({ onClose }: ReportFormProps) {
                                     onChange={(e) => setManualArea(e.target.value)}
                                     className="flex-1 bg-transparent text-sm text-white border-none focus:outline-none"
                                 >
-                                    <option value="">Select area...</option>
+                                    <option value="" className="text-black bg-white">Select area...</option>
                                     {Object.keys(GUWAHATI_AREAS).map((area) => (
-                                        <option key={area} value={area}>{area}</option>
+                                        <option key={area} value={area} className="text-black bg-white">{area}</option>
                                     ))}
                                 </select>
                             )}
