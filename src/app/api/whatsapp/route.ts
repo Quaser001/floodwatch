@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export async function GET() {
+    return NextResponse.json({
+        status: 'online',
+        message: 'WhatsApp webhook is ready. Configure Twilio to send POST requests to this URL.'
+    });
+}
+
 export async function POST(request: NextRequest) {
     console.log("WhatsApp webhook hit");
 
