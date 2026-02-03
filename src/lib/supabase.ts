@@ -276,6 +276,9 @@ function mapDbAlertToAlert(db: DbAlert): Alert {
         notifiedUsers: db.notified_users,
         isActive: db.is_active,
         suggestedActions: db.suggested_actions,
+        roadState: 'monitoring', // Default as we might not persist this yet
+        resolvedCount: 0,
+        confirmedCount: 0
     };
 }
 

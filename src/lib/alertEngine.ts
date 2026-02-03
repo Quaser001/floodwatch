@@ -294,6 +294,11 @@ export function processReportsForAlerts(
             notifiedUsers,
             isActive: true,
             suggestedActions: suggestedActions.map((a) => a.message),
+
+            // Initial Road State
+            roadState: severity === 'critical' || severity === 'high' ? 'flooded' : 'monitoring',
+            resolvedCount: 0,
+            confirmedCount: 0,
         };
 
         newAlerts.push(alert);

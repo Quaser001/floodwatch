@@ -35,7 +35,7 @@ const POPULAR_DESTINATIONS = [
 ];
 
 export default function RoutingPanel({ userLocation, onRouteCalculated }: RoutingPanelProps) {
-    const { alerts, blockedRoads } = useFloodStore();
+    const { alerts, blockedRoads, recentlyResolved } = useFloodStore();
     const [destination, setDestination] = useState<Coordinates | null>(null);
     const [destinationName, setDestinationName] = useState('');
     const [route, setRoute] = useState<RouteData | null>(null);
@@ -122,8 +122,8 @@ export default function RoutingPanel({ userLocation, onRouteCalculated }: Routin
                             key={dest.name}
                             onClick={() => selectDestination(dest.name, dest.coords)}
                             className={`text-xs px-3 py-2 rounded-lg border transition-all ${destinationName === dest.name
-                                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                                    : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600'
+                                ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                                : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600'
                                 }`}
                         >
                             {dest.name}
@@ -161,8 +161,8 @@ export default function RoutingPanel({ userLocation, onRouteCalculated }: Routin
             {/* Route Result */}
             {route && (
                 <div className={`rounded-lg p-3 border ${!route.isDetour
-                        ? 'bg-emerald-500/10 border-emerald-500/30'
-                        : 'bg-orange-500/10 border-orange-500/30'
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-orange-500/10 border-orange-500/30'
                     }`}>
                     <div className="flex items-center gap-2 mb-2">
                         <span className="text-lg">{!route.isDetour ? '✅' : '⚠️'}</span>
@@ -187,10 +187,10 @@ export default function RoutingPanel({ userLocation, onRouteCalculated }: Routin
                         📍 {route.summary}
                     </div>
 
-                    {/* Avoided Areas */}
+                    {/* Avoided Areas - with specific messaging */}
                     {route.avoidedAreas.length > 0 && (
                         <div className="pt-2 border-t border-slate-700/50 mb-2">
-                            <p className="text-xs text-slate-500 mb-1">🚧 Avoiding Flood Zones:</p>
+                            <p className="text-xs text-orange-400 mb-1">🚧 Avoiding due to flooding:</p>
                             <div className="flex flex-wrap gap-1">
                                 {route.avoidedAreas.map(area => (
                                     <span key={area} className="badge badge-critical text-[10px]">
@@ -237,6 +237,20 @@ export default function RoutingPanel({ userLocation, onRouteCalculated }: Routin
                         <p className="text-[10px] text-slate-500 italic">
                             🔬 Route computed via Dijkstra/A* on OSM road graph (OSRM)
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Recently Reopened Roads (shows after resolution) */}
+            {recentlyResolved.length > 0 && (
+                <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                    <p className="text-xs text-emerald-400 font-medium mb-1">🟢 Roads Reopened:</p>
+                    <div className="flex flex-wrap gap-1">
+                        {recentlyResolved.map((item) => (
+                            <span key={item.alertId} className="text-xs text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                                {item.areaName} — route updated
+                            </span>
+                        ))}
                     </div>
                 </div>
             )}

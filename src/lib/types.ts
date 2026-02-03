@@ -2,6 +2,7 @@
 
 export type FloodType = 'flood' | 'waterlogging' | 'drain_overflow';
 export type AlertSeverity = 'critical' | 'high' | 'medium';
+export type RoadState = 'normal' | 'flooded' | 'monitoring'; // 3-state model
 
 export interface Coordinates {
   lat: number;
@@ -36,6 +37,14 @@ export interface Alert {
   notifiedUsers: number;
   isActive: boolean;
   suggestedActions: string[];
+  photoUrl?: string; // Ground evidence photo
+
+  // Road state tracking
+  roadState: RoadState; // flooded | monitoring | normal
+  resolvedCount: number; // Number of "cleared" votes
+  confirmedCount: number; // Number of "still flooded" votes  
+  monitoringSince?: Date; // When entered monitoring state
+  lastConfirmedAt?: Date; // Last "still flooded" report
 }
 
 export interface User {
@@ -114,7 +123,7 @@ export const GUWAHATI_AREAS: Record<string, Coordinates> = {
   'Dispur': { lat: 26.1402, lng: 91.7880 },
   'Guwahati Railway Station': { lat: 26.1791, lng: 91.7552 },
   'Khanapara': { lat: 26.1323, lng: 91.8198 },
-  'Maligaon': { lat: 26.1879, lng: 91.7105 },
+  'Maligaon': { lat: 26.1556, lng: 91.6906 },
   'Bharalumukh': { lat: 26.1723, lng: 91.7329 },
   'Uzanbazar': { lat: 26.1902, lng: 91.7467 },
   'Lachit Nagar': { lat: 26.1585, lng: 91.7552 },

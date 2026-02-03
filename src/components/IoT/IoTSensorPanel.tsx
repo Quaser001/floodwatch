@@ -61,7 +61,6 @@ export default function IoTSensorPanel({ onThresholdExceeded }: IoTSensorPanelPr
                 }
             }
         } else {
-            // Reset threshold tracking when below threshold
             if (lastTelegramSent === sensorId) {
                 setLastTelegramSent(null);
             }
@@ -69,139 +68,98 @@ export default function IoTSensorPanel({ onThresholdExceeded }: IoTSensorPanelPr
     };
 
     const getStatusColor = (level: number) => {
-        if (level >= 70) return 'from-red-500 to-rose-600';
-        if (level >= WATER_THRESHOLD) return 'from-orange-500 to-amber-600';
-        if (level >= 30) return 'from-yellow-500 to-amber-500';
-        return 'from-emerald-500 to-green-600';
+        if (level >= 70) return 'bg-red-500';
+        if (level >= WATER_THRESHOLD) return 'bg-orange-500';
+        if (level >= 30) return 'bg-yellow-500';
+        return 'bg-emerald-500';
     };
 
     const getStatusLabel = (level: number) => {
-        if (level >= 70) return 'CRITICAL';
-        if (level >= WATER_THRESHOLD) return 'WARNING';
-        if (level >= 30) return 'ELEVATED';
-        return 'NORMAL';
+        if (level >= 70) return { text: 'CRITICAL', color: 'text-red-400 bg-red-500/20' };
+        if (level >= WATER_THRESHOLD) return { text: 'WARNING', color: 'text-orange-400 bg-orange-500/20' };
+        if (level >= 30) return { text: 'ELEVATED', color: 'text-yellow-400 bg-yellow-500/20' };
+        return { text: 'NORMAL', color: 'text-emerald-400 bg-emerald-500/20' };
     };
 
     return (
-        <div>
+        <div className="space-y-2">
             {isSending && (
-                <div className="badge badge-info animate-pulse mb-3">
-                    <span className="spinner w-3 h-3 mr-2" />
-                    Sending Telegram...
+                <div className="text-xs text-blue-400 flex items-center gap-2 mb-2">
+                    <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    Sending alert...
                 </div>
             )}
 
-            <div className="space-y-4">
-                {sensors.map((sensor) => {
-                    const level = waterLevels[sensor.id] || 0;
-                    const isAboveThreshold = level >= WATER_THRESHOLD;
-                    const statusColor = getStatusColor(level);
-                    const statusLabel = getStatusLabel(level);
+            {sensors.map((sensor) => {
+                const level = waterLevels[sensor.id] || 0;
+                const isAboveThreshold = level >= WATER_THRESHOLD;
+                const status = getStatusLabel(level);
 
-                    return (
-                        <div
-                            key={sensor.id}
-                            className={`p-4 rounded-xl border transition-all ${isAboveThreshold
-                                ? 'bg-red-500/10 border-red-500/50 animate-pulse'
-                                : 'bg-slate-800/50 border-slate-700/50'
-                                }`}
-                        >
-                            {/* Sensor Header */}
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${statusColor} ${isAboveThreshold ? 'animate-ping' : ''}`} />
-                                    <div>
-                                        <span className="text-white font-medium text-sm">{sensor.areaName}</span>
-                                        <p className="text-xs text-slate-500">{sensor.id}</p>
-                                    </div>
-                                </div>
-                                <div className={`badge text-[10px] ${isAboveThreshold ? 'badge-critical' : 'badge-info'
-                                    }`}>
-                                    {statusLabel}
-                                </div>
+                return (
+                    <div
+                        key={sensor.id}
+                        className={`p-3 rounded-lg border transition-all ${isAboveThreshold
+                                ? 'bg-red-500/10 border-red-500/40'
+                                : 'bg-slate-800/40 border-slate-700/40'
+                            }`}
+                    >
+                        {/* Compact Header Row */}
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <div className={`w-2 h-2 rounded-full ${getStatusColor(level)} shrink-0 ${isAboveThreshold ? 'animate-pulse' : ''}`} />
+                                <span className="text-sm text-white font-medium truncate">{sensor.areaName}</span>
+                            </div>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${status.color}`}>
+                                {status.text}
+                            </span>
+                        </div>
+
+                        {/* Compact Level Display */}
+                        <div className="flex items-center gap-3">
+                            <div className="text-lg font-bold text-white">
+                                {level.toFixed(0)}<span className="text-xs text-slate-500 ml-0.5">cm</span>
                             </div>
 
-                            {/* Water Level Display */}
-                            <div className="flex items-center gap-4 mb-3">
-                                <div className="flex-1">
-                                    <div className="flex items-baseline gap-1 mb-1">
-                                        <span className="text-2xl font-bold text-white">{level.toFixed(0)}</span>
-                                        <span className="text-sm text-slate-400">cm</span>
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                        Threshold: {WATER_THRESHOLD}cm
-                                    </div>
-                                </div>
-
-                                {/* Visual Water Tank */}
-                                <div className="w-12 h-20 rounded-lg border-2 border-slate-600 bg-slate-900 relative overflow-hidden">
-                                    <div
-                                        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t ${statusColor} transition-all duration-300`}
-                                        style={{ height: `${Math.min(level, 100)}%` }}
-                                    />
-                                    {/* Threshold Line */}
-                                    <div
-                                        className="absolute left-0 right-0 border-t-2 border-dashed border-yellow-400"
-                                        style={{ bottom: `${WATER_THRESHOLD}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Slider */}
-                            <div className="relative">
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={level}
-                                    onChange={(e) => handleWaterLevelChange(sensor.id, Number(e.target.value))}
-                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb"
-                                    style={{
-                                        background: `linear-gradient(to right, ${level >= 70 ? '#ef4444' : level >= 50 ? '#f97316' : level >= 30 ? '#eab308' : '#10b981'
-                                            } 0%, ${level >= 70 ? '#ef4444' : level >= 50 ? '#f97316' : level >= 30 ? '#eab308' : '#10b981'
-                                            } ${level}%, #334155 ${level}%, #334155 100%)`,
-                                    }}
-                                />
-                                {/* Threshold Marker */}
+                            {/* Progress Bar (compact) */}
+                            <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden relative">
                                 <div
-                                    className="absolute top-0 w-0.5 h-full bg-yellow-400/50"
+                                    className={`h-full ${getStatusColor(level)} transition-all duration-200`}
+                                    style={{ width: `${Math.min(level, 100)}%` }}
+                                />
+                                {/* Threshold marker */}
+                                <div
+                                    className="absolute top-0 bottom-0 w-px bg-yellow-400"
                                     style={{ left: `${WATER_THRESHOLD}%` }}
                                 />
                             </div>
-
-                            {/* Alert Warning */}
-                            {isAboveThreshold && (
-                                <div className="mt-3 flex items-center gap-2 text-xs text-red-400 font-medium">
-                                    <span className="animate-bounce">⚠️</span>
-                                    Water level exceeded threshold! Telegram alert triggered.
-                                </div>
-                            )}
                         </div>
-                    );
-                })}
-            </div>
 
-            {/* Legend */}
-            <div className="mt-4 pt-4 border-t border-slate-700/50">
-                <p className="text-xs text-slate-500 mb-2">Water Level Zones:</p>
-                <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600" />
-                        <span className="text-[10px] text-slate-400">0-29cm Normal</span>
+                        {/* Slider (only show on hover/focus for clean look) */}
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={level}
+                            onChange={(e) => handleWaterLevelChange(sensor.id, Number(e.target.value))}
+                            className="w-full h-1 mt-2 bg-slate-700 rounded appearance-none cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                        />
+
+                        {/* Threshold warning (compact) */}
+                        {isAboveThreshold && (
+                            <div className="mt-2 text-[10px] text-red-400">
+                                ⚠️ Above threshold ({WATER_THRESHOLD}cm)
+                            </div>
+                        )}
                     </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-yellow-500 to-amber-500" />
-                        <span className="text-[10px] text-slate-400">30-49cm Elevated</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-500 to-amber-600" />
-                        <span className="text-[10px] text-slate-400">50-69cm Warning</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-500 to-rose-600" />
-                        <span className="text-[10px] text-slate-400">70+cm Critical</span>
-                    </div>
-                </div>
+                );
+            })}
+
+            {/* Minimal legend */}
+            <div className="flex items-center gap-2 pt-2 text-[10px] text-slate-500">
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> OK</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> Watch</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500" /> Warn</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> Crit</span>
             </div>
         </div>
     );

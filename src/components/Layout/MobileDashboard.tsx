@@ -35,6 +35,7 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
     const [isRoutingOpen, setIsRoutingOpen] = useState(false);
     const [activeRoute, setActiveRoute] = useState<RouteData | null>(null);
     const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+    const [recenterTrigger, setRecenterTrigger] = useState(0); // For recenter button
 
     // Settings State
     const [language, setLanguage] = useState('English');
@@ -44,16 +45,32 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
     const { alerts, weather, simulateIncomingReport, addNotification } = useFloodStore();
     const activeAlerts = alerts.filter(a => a.isActive);
 
-    // Auto-detect location for navigation demo
+    // Live Location Tracking (Continuous)
     useEffect(() => {
+        let watchId: number;
+
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                (err) => console.log('Location access denied defaulting', err)
+            watchId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    // TODO: In prod, smoothing algorithm here
+                    setUserLocation({ lat: latitude, lng: longitude });
+                },
+                (err) => console.log('Location tracking error:', err),
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 10000,
+                    timeout: 5000
+                }
             );
+        } else {
+            // Fallback for dev/browser without support
+            setUserLocation({ lat: 26.1445, lng: 91.7362 });
         }
-        // Fallback for demo if geolocation fails or is localhost without ssl
-        setUserLocation({ lat: 26.1445, lng: 91.7362 }); // Guwahati Center
+
+        return () => {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+        };
     }, []);
 
     // Translations
@@ -167,33 +184,28 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
     return (
         <div className={`flex flex-col h-full bg-slate-950 mobile-dashboard rounded-[40px] overflow-hidden shadow-2xl border-[6px] border-slate-900 relative ${theme === 'light' ? 'invert' : ''}`} onClick={(e) => e.stopPropagation()}>
 
-            {/* Header Overlay (Gradient fade) */}
-            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/80 to-transparent z-[1000] pointer-events-none" />
+            {/* Header Overlay removed */}
 
             {/* Mobile Header Content */}
             <header className="absolute top-0 left-0 right-0 z-[1001] px-5 py-5 flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                    {/* Hamburger Menu */}
-                    <button
-                        onClick={() => setIsDrawerOpen(true)}
-                        className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/5 active:bg-white/20 transition-colors"
-                    >
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                        </svg>
-                    </button>
+                    {/* Hamburger Menu removed - available in bottom bar */}
 
-                    <div>
-                        <h1 className={`${headerScale} font-black text-white tracking-tight drop-shadow-md`}>
-                            Flood<span className="text-blue-500">Watch</span>
-                        </h1>
+                    {activeTab === 'map' && (
+                        <div>
+                            <h1 className={`${headerScale} font-black text-white tracking-tight drop-shadow-md`}>
+                                Flood<span className="text-blue-500">Watch</span>
+                            </h1>
+                        </div>
+                    )}
+                </div>
+
+                {/* Weather Widget - Inline with Header */}
+                {activeTab === 'map' && (
+                    <div className="transform scale-90 origin-right">
+                        <WeatherWidget />
                     </div>
-                </div>
-
-                {/* Weather Widget */}
-                <div className="origin-top-right transform scale-90">
-                    <WeatherWidget />
-                </div>
+                )}
             </header>
 
             {/* Sidebar Drawer */}
@@ -252,17 +264,35 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                     <div className="h-full w-full relative">
                         <FloodMap
                             routeGeometry={activeRoute?.geometry}
-                            userLocation={userLocation || undefined} // Pass user location for arrow
+                            userLocation={userLocation || undefined}
+                            isMobile={true}
+                            recenterTrigger={recenterTrigger}
                         />
+
+                        {/* Weather Widget moved to header */}
+
+                        {/* Recenter FAB - Single Smart Control */}
+                        <button
+                            onClick={() => setRecenterTrigger(prev => prev + 1)}
+                            className="absolute bottom-28 right-4 z-[1001] w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl flex items-center justify-center active:scale-90 transition-transform"
+                            title="Recenter on Me"
+                        >
+                            <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
 
                         {/* Floating Navigate Button */}
                         <div className="absolute bottom-28 left-4 z-[1001]">
                             <button
                                 onClick={() => setIsRoutingOpen(true)}
-                                className="w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center active:scale-95 border-2 border-white/20"
+                                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white shadow-xl flex items-center justify-center active:scale-90 transition-transform"
                                 title="Navigate"
                             >
-                                <span className="text-2xl">🧭</span>
+                                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -327,7 +357,7 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
 
                 {/* Chat Tab */}
                 {activeTab === 'chat' && (
-                    <div className="h-full flex flex-col justify-end pb-32 px-5 bg-slate-900 relative">
+                    <div className="h-full flex flex-col justify-start pt-8 pb-32 px-5 bg-slate-900 relative">
                         <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-900 to-black pointer-events-none" />
 
                         <div className="relative z-10">
@@ -380,8 +410,8 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                                         key={lang}
                                         onClick={() => setLanguage(lang.split(' ')[0])}
                                         className={`p-4 rounded-2xl border text-left transition-all ${language === lang.split(' ')[0]
-                                                ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                                                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
                                             }`}
                                     >
                                         <span className={fontScale}>{lang}</span>
@@ -399,8 +429,8 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                                         key={size}
                                         onClick={() => setTextSize(size)}
                                         className={`flex-1 py-3 rounded-xl font-bold transition-all ${textSize === size
-                                                ? 'bg-white text-slate-900 shadow-md transform scale-105'
-                                                : 'text-slate-500 hover:text-white'
+                                            ? 'bg-white text-slate-900 shadow-md transform scale-105'
+                                            : 'text-slate-500 hover:text-white'
                                             }`}
                                     >
                                         <span className={size === 'S' ? 'text-xs' : size === 'M' ? 'text-sm' : size === 'L' ? 'text-lg' : 'text-xl'}>
@@ -418,8 +448,8 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                                 <button
                                     onClick={() => setTheme('dark')}
                                     className={`flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${theme === 'dark'
-                                            ? 'bg-slate-700 text-white shadow-md'
-                                            : 'text-slate-500 hover:text-white'
+                                        ? 'bg-slate-700 text-white shadow-md'
+                                        : 'text-slate-500 hover:text-white'
                                         }`}
                                 >
                                     <span>🌙</span> Dark
@@ -427,8 +457,8 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                                 <button
                                     onClick={() => setTheme('light')}
                                     className={`flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${theme === 'light'
-                                            ? 'bg-white text-slate-900 shadow-md'
-                                            : 'text-slate-500 hover:text-white'
+                                        ? 'bg-white text-slate-900 shadow-md'
+                                        : 'text-slate-500 hover:text-white'
                                         }`}
                                 >
                                     <span>☀️</span> Light
@@ -443,7 +473,7 @@ export default function MobileDashboard({ onReportClick, onTelegramClick }: Mobi
                 )}
 
                 {/* Voice Assistant Overlay */}
-                <VoiceAssistant position="absolute" className="bottom-24 right-4" />
+                <VoiceAssistant position="absolute" className="bottom-44 right-4" />
             </div>
 
             {/* Floating Navigation Pill */}

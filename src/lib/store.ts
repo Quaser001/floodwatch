@@ -34,6 +34,7 @@ interface FloodStore {
     sensors: SensorNode[];
     alertHistory: Alert[]; // [NEW] Past alerts
     cityWideAlerts: Alert[]; // [NEW] Mock alerts for other regions
+    recentlyResolved: { alertId: string; areaName: string; resolvedAt: Date }[]; // Resolved road edges
 
     // Actions
     initializeUser: () => void;
@@ -51,6 +52,10 @@ interface FloodStore {
     seedDemoData: () => void;
     simulateIncomingReport: () => void;
     simulateSensorEvent: (sensorId: string) => void;
+
+    // Resolution
+    resolveAlert: (alertId: string) => void;
+    clearResolvedNotifications: () => void;
 }
 
 // Initial Sensor Configuration
@@ -106,12 +111,12 @@ const DEFAULT_WEATHER: WeatherData = {
     humidity: 85,
 };
 
-// Key Guwahati locations for city-wide mock data
+// Key Guwahati locations for city-wide mock data (with photo evidence)
 const CITY_WIDE_MOCK_LOCATIONS = [
-    { name: 'Anil Nagar', coords: { lat: 26.1754, lng: 91.7766 }, type: 'flood', severity: 'critical' },
-    { name: 'Nabin Nagar', coords: { lat: 26.1732, lng: 91.7744 }, type: 'flood', severity: 'critical' },
-    { name: 'Hatigaon', coords: { lat: 26.1402, lng: 91.7909 }, type: 'waterlogging', severity: 'medium' },
-    { name: 'Rukminigaon', coords: { lat: 26.1364, lng: 91.7963 }, type: 'waterlogging', severity: 'high' }
+    { name: 'Anil Nagar', coords: { lat: 26.1754, lng: 91.7766 }, type: 'flood', severity: 'critical', photoUrl: '/demo/flood_evidence_1.png' },
+    { name: 'Nabin Nagar', coords: { lat: 26.1732, lng: 91.7744 }, type: 'flood', severity: 'critical', photoUrl: '/demo/flood_evidence_4.png' },
+    { name: 'Hatigaon', coords: { lat: 26.1402, lng: 91.7909 }, type: 'waterlogging', severity: 'medium', photoUrl: '/demo/flood_evidence_2.png' },
+    { name: 'Rukminigaon', coords: { lat: 26.1364, lng: 91.7963 }, type: 'waterlogging', severity: 'high', photoUrl: '/demo/flood_evidence_5.png' }
 ];
 
 export const useFloodStore = create<FloodStore>((set, get) => ({
@@ -129,6 +134,7 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
     sensors: DEFAULT_SENSORS,
     alertHistory: [], // [NEW]
     cityWideAlerts: [], // [NEW]
+    recentlyResolved: [], // Tracks roads that were just unblocked
 
     // Initialize user on first interaction
     initializeUser: () => {
@@ -329,10 +335,16 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
             triggeredAt: new Date(Date.now() - 1000 * 60 * 60 * (i + 1)), // Started hours ago
             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 4), // Expires in 4 hours
             reportCount: 15 + i * 5, // Fake report counts
-            confidenceScore: 0.9,
+            confidenceScore: loc.photoUrl ? 0.95 : 0.7, // Photo boosts confidence
             areaName: loc.name,
             notifiedUsers: 200 + i * 50,
             isActive: true,
+            photoUrl: loc.photoUrl, // Ground evidence
+            // Road state tracking (3-state model)
+            roadState: 'flooded' as const,
+            resolvedCount: 0,
+            confirmedCount: 10 + i * 2,
+            lastConfirmedAt: new Date(Date.now() - 1000 * 60 * 5), // 5 min ago
             suggestedActions: [
                 'Avoid this area',
                 'Take alternative route',
@@ -355,14 +367,17 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
                 reportCount: 12,
                 confidenceScore: 0.85,
                 notifiedUsers: 150,
-                suggestedActions: []
+                suggestedActions: [],
+                roadState: 'normal',
+                resolvedCount: 8,
+                confirmedCount: 12
             },
             {
                 id: 'history-2',
                 type: 'drain_overflow',
                 location: { lat: 26.1445, lng: 91.7362 }, // GS Road
                 radius: 200,
-                severity: 'medium', // Changed from low to medium as low might not exist
+                severity: 'medium',
                 triggeredAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
                 expiresAt: new Date(Date.now() - 1000 * 60 * 60 * 40),
                 areaName: 'GS Road (Bhangagarh)',
@@ -370,7 +385,10 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
                 reportCount: 8,
                 confidenceScore: 0.7,
                 notifiedUsers: 80,
-                suggestedActions: []
+                suggestedActions: [],
+                roadState: 'normal',
+                resolvedCount: 5,
+                confirmedCount: 8
             }
         ];
 
@@ -458,5 +476,35 @@ export const useFloodStore = create<FloodStore>((set, get) => ({
                 photoVerified: true, // Treat sensor data as "verified"
             });
         }
+    },
+
+    // Resolution: Mark alert as resolved (edge unblocked)
+    resolveAlert: (alertId: string) => {
+        const alert = get().alerts.find(a => a.id === alertId);
+        if (!alert) return;
+
+        set(state => ({
+            // Mark alert inactive (road edge back to NORMAL)
+            alerts: state.alerts.map(a =>
+                a.id === alertId ? { ...a, isActive: false } : a
+            ),
+            // Track for UI notification "X Road reopened"
+            recentlyResolved: [
+                ...state.recentlyResolved,
+                { alertId, areaName: alert.areaName, resolvedAt: new Date() }
+            ],
+            // Move to history
+            alertHistory: [
+                ...state.alertHistory,
+                { ...alert, isActive: false }
+            ]
+        }));
+
+        get().addNotification(`🟢 ${alert.areaName} reopened — route updated!`);
+    },
+
+    // Clear old resolved notifications (after showing them)
+    clearResolvedNotifications: () => {
+        set({ recentlyResolved: [] });
     },
 }));

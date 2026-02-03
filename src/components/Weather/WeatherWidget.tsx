@@ -57,7 +57,7 @@ export default function WeatherWidget() {
     return (
         <div className="relative z-[1001]">
             <div className={`
-                glass-card px-4 py-2 flex items-center gap-3 transition-all duration-300 relative z-20
+                glass px-4 py-2 flex items-center gap-3 transition-all duration-300 relative z-20 !overflow-visible
                 ${weather.isRaining ? 'border-blue-500/30 shadow-blue-500/10' : 'border-slate-700/30'}
                 ${showForecast ? 'bg-slate-800/80 ring-1 ring-blue-500/50' : ''}
             `}>

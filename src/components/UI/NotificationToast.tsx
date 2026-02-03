@@ -8,7 +8,7 @@ export default function NotificationToast() {
     if (notifications.length === 0) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 space-y-3 max-w-md">
+        <div className="absolute bottom-6 right-6 z-[6000] space-y-3 max-w-md">
             {notifications.map((message, index) => (
                 <div
                     key={index}
