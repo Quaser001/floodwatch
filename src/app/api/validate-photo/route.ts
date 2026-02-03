@@ -122,21 +122,43 @@ export async function POST(request: NextRequest) {
         // Gate logic - conservative approach
         const accepted = validation.is_flood && validation.confidence !== 'low';
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             ...validation,
             validated: accepted,
         });
+
+        // Add CORS headers
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+        return response;
 
     } catch (error) {
         console.error('Photo validation error:', error);
 
         // Fail closed - reject on error
-        return NextResponse.json({
+        const response = NextResponse.json({
             is_flood: false,
             confidence: 'low',
             reason: 'Validation service unavailable',
             validated: false,
             error: error instanceof Error ? error.message : 'Unknown error',
         });
+
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        return response;
     }
+}
+
+export async function OPTIONS(request: NextRequest) {
+    const response = new NextResponse(null, {
+        status: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+    });
+    return response;
 }
